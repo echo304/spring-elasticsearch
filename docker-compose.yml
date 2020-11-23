@@ -1,0 +1,63 @@
+
+services:
+  mysql57:
+    image: mysql:5.7
+    restart: always
+    ports:
+      - "3307:3306"
+    volumes:
+      - "db_data:/var/lib/mysql"
+    environment:
+      - MYSQL_ALLOW_EMPTY_PASSWORD=true
+    networks:
+      - elk
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.0
+    container_name: elasticsearch
+    environment:
+      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
+      discovery.type: single-node
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data01:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - elk
+  logstash:
+    container_name: logstash
+    image: docker.elastic.co/logstash/logstash:7.10.0
+    environment:
+      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+    volumes:
+      - type: bind
+        source: ./config/logstash/pipeline
+        target: /usr/share/logstash/pipeline
+        read_only: true
+      - ./config/logstash/mysql-connector-java-8.0.22.jar:/usr/share/logstash/logstash-core/lib/jars/mysql-connector-java-8.0.22.jar #mysql 사용을 위한 jdbc-connector 다운
+
+    depends_on:
+      - elasticsearch
+      - kibana
+      - mysql57
+    networks:
+      - elk
+  kibana:
+    container_name: kibana
+    image: docker.elastic.co/kibana/kibana:7.6.1
+    ports:
+      - 5601:5601
+    depends_on:
+      - elasticsearch #elasticsearch 가 실행된 이후 kibana 실행되도록 depends_on 설정
+    networks:
+      - elk
+
+volumes:
+  db_data: null
+  data01:
+    driver: local
+networks:
+  elk:
